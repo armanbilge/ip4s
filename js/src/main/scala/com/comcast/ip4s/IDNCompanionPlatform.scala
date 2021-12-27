@@ -22,15 +22,15 @@ import scala.util.Try
 
 private[ip4s] trait IDNCompanionPlatform {
   private[ip4s] def toAscii(value: String): Option[String] =
-    Try(Punycode.toASCII(value)).toOption
+    Some(url.domainToASCII(value)).filter(_.nonEmpty)
 
   private[ip4s] def toUnicode(value: String): String =
-    Try(Punycode.toUnicode(value)).toOption.getOrElse(value)
+    Some(url.domainToUnicode(value)).filter(_.nonEmpty).getOrElse(value)
 }
 
 @js.native
-@JSImport("punycode", JSImport.Default)
-private[ip4s] object Punycode extends js.Any {
-  def toASCII(value: String): String = js.native
-  def toUnicode(value: String): String = js.native
+@JSImport("url", JSImport.Default)
+private[ip4s] object url extends js.Any {
+  def domainToASCII(domain: String): String = js.native
+  def domainToUnicode(value: String): String = js.native
 }
