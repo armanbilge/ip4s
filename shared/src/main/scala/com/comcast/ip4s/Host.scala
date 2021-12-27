@@ -803,9 +803,13 @@ object IDN extends IDNCompanionPlatform {
 
   /** Converts the supplied (ASCII) hostname in to an IDN. */
   def fromHostname(hostname: Hostname): IDN = {
-    val labels =
-      hostname.labels.map(l => new Label(toUnicode(l.toString)))
-    new IDN(labels, hostname, labels.toList.mkString("."))
+    val value = toUnicode(hostname.toString)
+    val labels = value
+      .split(DotPattern)
+      .iterator
+      .map(new Label(_))
+      .toList
+    new IDN(labels, hostname, value)
   }
 
   implicit val show: Show[IDN] = Show.fromToString[IDN]
