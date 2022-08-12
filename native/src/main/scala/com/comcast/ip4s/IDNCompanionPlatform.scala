@@ -21,84 +21,78 @@ import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 
 private[ip4s] trait IDNCompanionPlatform {
-  private[ip4s] def toAscii(value: String): Option[String] = Zone { implicit z =>
-    val src = toCWideStringUTF16LE(value)
-    val dest = stackalloc[uidna.UChar](MaxLength)
-    val status = stackalloc[uidna.UErrorCode]()
-    val destLength = uidna.uidna_IDNToASCII(
-      src,
-      -1,
-      dest,
-      MaxLength,
-      0,
-      null,
-      status
-    )
-    if (!status == 0)
-      Some(fromCWideStringUTF16LE(dest, destLength))
-    else None
+  private[ip4s] def toAscii(value: String): Option[String] = {
+    val src = stackalloc[CUnsignedInt](MaxLength)
+    var i = 0
+    while (i < value.length) {
+      src(i) = value.codePointAt(i).toUInt
+      i += 1
+    }
+
+    val dest = stackalloc[CChar](MaxLength)
+    val destLength = stackalloc[CSize]()
+    !destLength = MaxLength
+
+    val status = punycode.punycode_encode(src, value.length.toUInt, dest, destLength)
+
+    if (status == value.length.toUInt) {
+      val chars = new Array[Char]((!destLength).toInt)
+      var i = 0
+      while (i < chars.length) {
+        chars(i) = dest(i).toChar
+        i += 1
+      }
+      Some(new String(chars))
+    } else None
   }
 
   private[ip4s] def toUnicode(value: String): String = Zone { implicit z =>
-    val src = toCWideStringUTF16LE(value)
-    val dest = stackalloc[uidna.UChar](MaxLength)
-    val status = stackalloc[uidna.UErrorCode]()
-    val destLength = uidna.uidna_IDNToUnicode(
-      src,
-      -1,
-      dest,
-      MaxLength,
-      0,
-      null,
-      status
-    )
-    if (!status != 0)
-      throw new RuntimeException("uidna_IDNToUnicode: " + !status)
-    fromCWideStringUTF16LE(dest, destLength)
-  }
-
-  private[this] def fromCWideStringUTF16LE(chars: Ptr[CChar16], length: CInt): String = {
-    val bytes = chars.asInstanceOf[Ptr[Byte]]
-    val buf = new Array[Byte](2 * length)
+    val src = stackalloc[CChar](MaxLength)
     var i = 0
-    while (i < buf.length) {
-      buf(i) = bytes(i)
+    while (i < value.length) {
+      src(i) = value.charAt(i).toByte
       i += 1
     }
-    new String(buf, StandardCharsets.UTF_16LE)
+
+    val dest = stackalloc[CUnsignedInt](MaxLength)
+    val destLength = stackalloc[CSize]()
+    !destLength = MaxLength
+
+    val status = punycode.punycode_decode(src, value.length.toUInt, dest, destLength)
+
+    if (status == value.length.toUInt) {
+      val codePoints = new Array[Int]((!destLength).toInt)
+      var i = 0
+      while (i < codePoints.length) {
+        codePoints(i) = dest(i).toChar
+        i += 1
+      }
+      new String(codePoints, 0, codePoints.length)
+    } else {
+      throw new RuntimeException("punycode_decode")
+    }
   }
 
-  private[this] final val MaxLength = 256
+  private[this] final val MaxLength: CSize = 256.toUInt
 }
 
-@link("icuuc")
 @extern
-private object uidna {
+private object punycode {
 
-  type UChar = CChar16
-  type UParseError = Ptr[Byte]
-  type UErrorCode = CInt
+  @name("ip4s_punycode_encode")
+  def punycode_encode(
+      src: Ptr[CUnsignedInt],
+      srclen: CSize,
+      dst: Ptr[CChar],
+      dstlen: Ptr[CSize]
+  ): CSize = extern
 
-  @name("ip4s_uidna_IDNToASCII")
-  def uidna_IDNToASCII(
-      src: Ptr[UChar],
-      srcLength: CInt,
-      dest: Ptr[UChar],
-      destCapacity: CInt,
-      options: CInt,
-      parseError: Ptr[UParseError],
-      status: Ptr[UErrorCode]
-  ): CInt = extern
-
-  @name("ip4s_uidna_IDNToUnicode")
-  def uidna_IDNToUnicode(
-      src: Ptr[UChar],
-      srcLength: CInt,
-      dest: Ptr[UChar],
-      destCapacity: CInt,
-      options: CInt,
-      parseError: Ptr[UParseError],
-      status: Ptr[UErrorCode]
-  ): CInt = extern
+  @name("ip4s_punycode_decode")
+  def punycode_decode(
+      src: Ptr[CChar],
+      srclen: CSize,
+      dst: Ptr[CUnsignedInt],
+      dstlen: Ptr[CSize]
+  ): CSize = extern
 
 }
