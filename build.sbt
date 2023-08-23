@@ -71,7 +71,7 @@ lazy val core = crossProject(JVMPlatform, JSPlatform, NativePlatform)
       if (tlIsScala3.value) Nil
       else List("org.scala-lang" % "scala-reflect" % scalaVersion.value % "provided")
     },
-    scalacOptions := scalacOptions.value.filterNot(_ == "-source:3.0-migration")
+    scalacOptions -= "-Xsource:3"
   )
   .settings(
     libraryDependencies ++= Seq(
